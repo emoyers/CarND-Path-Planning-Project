@@ -8,6 +8,7 @@
 #include "helpers.h"
 #include "json.hpp"
 #include "spline.h"
+#include "vehicle.h"
 
 // for convenience
 using nlohmann::json;
@@ -17,9 +18,8 @@ using std::cout;
 using std::endl;
 
 #define num_next_points_calulated 50
-
-static double ref_vel = 0.0;
-static int lane = 1;
+#define initial_velocity 0.0
+#define middle_lane 1
 
 int main() {
   uWS::Hub h;
@@ -35,6 +35,8 @@ int main() {
   string map_file_ = "../data/highway_map.csv";
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
+
+  Vehicle evo = Vehicle(initial_velocity, middle_lane);
 
   std::ifstream in_map_(map_file_.c_str(), std::ifstream::in);
 
@@ -60,7 +62,7 @@ int main() {
 
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-               &map_waypoints_dx,&map_waypoints_dy]
+               &map_waypoints_dx,&map_waypoints_dy, &evo]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -112,17 +114,19 @@ int main() {
            * TODO: define a path made up of (x,y) points that the car will visit
            *   sequentially every .02 seconds
            */
+          evo.set_parameters(car_x,car_y,car_s,car_d,car_yaw,car_speed);
+
           bool too_close = false;
           //sensor fusion checking the other cars
           if(prev_size>0)
           {
-            car_s = end_path_s;
+            evo.car_s =  end_path_s;
           }
 
           for (int i = 0; i < sensor_fusion.size(); ++i)
           {
             float d = sensor_fusion[i][6];
-            if(d<(2+4*lane+2) && d>(2+4*lane-2)){
+            if(d<(2+4*evo.actual_lane+2) && d>(2+4*evo.actual_lane-2)){
               double vx = sensor_fusion[i][3];
               double vy = sensor_fusion[i][4];
               double check_speed = sqrt(vx*vx + vy*vy);
@@ -130,13 +134,13 @@ int main() {
 
               check_s += ((double)prev_size*.02*check_speed);
 
-              if ((check_s > car_s) && ((check_s-car_s) < 30))
+              if ((check_s > evo.car_s) && ((check_s-evo.car_s) < 30))
               {
                 //ref_vel = 29.5; //mph
                 //do something
                 too_close = true;
-                if(lane>0){
-                  lane = 0;
+                if(evo.actual_lane>0){
+                  evo.actual_lane = 0;
                 }
               }
 
@@ -144,10 +148,10 @@ int main() {
           }
 
           if(too_close){
-            ref_vel -= 0.224;
+            evo.ref_velocity -= 0.4;
           }
-          else if(ref_vel < 49.5){
-            ref_vel += 0.224;
+          else if(evo.ref_velocity < 49.5){
+            evo.ref_velocity += 0.4;
           }
 
           //sensor fusion checking the other cars
@@ -156,19 +160,19 @@ int main() {
           vector<double> ptsx;
           vector<double> ptsy;
 
-          double ref_x = car_x;
-          double ref_y = car_y;
-          double ref_yaw = deg2rad(car_yaw);
+          double ref_x = evo.car_x;
+          double ref_y = evo.car_y;
+          double ref_yaw = deg2rad(evo.car_yaw);
 
           if(prev_size<2){
-            double prev_car_x = car_x - cos(car_yaw);
-            double prev_car_y = car_y - sin(car_yaw);
+            double prev_car_x = evo.car_x - cos(evo.car_yaw);
+            double prev_car_y = evo.car_y - sin(evo.car_yaw);
 
             ptsx.push_back(prev_car_x);
-            ptsx.push_back(car_x);
+            ptsx.push_back(evo.car_x);
 
             ptsy.push_back(prev_car_y);
-            ptsy.push_back(car_y);
+            ptsy.push_back(evo.car_y);
           }
           else{
             ref_x = previous_path_x[prev_size-1];
@@ -187,15 +191,15 @@ int main() {
 
           }
 
-          vector<double> xy = getXY(car_s+30,(2+4*lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
+          vector<double> xy = getXY(evo.car_s+30,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
           ptsx.push_back(xy[0]);
           ptsy.push_back(xy[1]);
 
-          xy = getXY(car_s+60,(2+4*lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
+          xy = getXY(evo.car_s+60,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
           ptsx.push_back(xy[0]);
           ptsy.push_back(xy[1]);
 
-          xy = getXY(car_s+90,(2+4*lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
+          xy = getXY(evo.car_s+90,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
           ptsx.push_back(xy[0]);
           ptsy.push_back(xy[1]);
 
@@ -227,7 +231,7 @@ int main() {
           double x_add_on = 0;
 
           for(int i=0; i<num_next_points_calulated-prev_size ; i++){
-            double N = (target_dist/(0.02*ref_vel/2.24));
+            double N = (target_dist/(0.02*evo.ref_velocity/2.24));
             double x_point = x_add_on + (target_x)/N;
             double y_point = xy_spline(x_point);
 
