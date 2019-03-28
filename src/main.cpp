@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <map>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "helpers.h"
@@ -14,12 +15,14 @@
 using nlohmann::json;
 using std::string;
 using std::vector;
+using std::map;
 using std::cout;
 using std::endl;
 
 #define num_next_points_calulated 50
 #define initial_velocity 0.0
 #define middle_lane 1
+#define FREE_SPACE 15
 
 int main() {
   uWS::Hub h;
@@ -114,13 +117,51 @@ int main() {
            * TODO: define a path made up of (x,y) points that the car will visit
            *   sequentially every .02 seconds
            */
-          evo.set_parameters(car_x,car_y,car_s,car_d,car_yaw,car_speed);
+          
 
           bool too_close = false;
           //sensor fusion checking the other cars
+          map<double, Vehicle> other_cars;
+          map<double, vector<vector<double>> > other_cars_predictions;
+          for (auto sf :  sensor_fusion)
+          {
+            Vehicle other_car;
+            double other_car_speed = sqrt(pow((double)sf[3], 2) + pow((double)sf[4], 2));
+            other_car.set_other_car_parameters( sf[1], sf[2], sf[5], sf[6], other_car_speed );
+            other_cars_predictions[sf[0]] = other_car.other_cars_predict((int)(num_next_points_calulated-previous_path_x.size()));
+            other_cars[sf[0]] = other_car;
+          }
+
+          /*for(int i = 0; i<other_cars_predictions.find(sensor_fusion[0][0])->second[0].size();i++){
+            cout<< "id 0: "<<
+            i<<"  s: "<<other_cars_predictions.find(sensor_fusion[0][0])->second[0][i]<<
+            ",  d: "<<other_cars_predictions.find(sensor_fusion[0][0])->second[1][i]<<
+            endl;
+          }*/
+
+          bool other_car_front = false;
+          bool other_car_right= false;
+          bool other_car_left = false;
+          for(auto it=other_cars_predictions.begin(); it!=other_cars_predictions.end();it++){
+            double diff_s = fabs(car_s - it->second[0][it->second[0].size()-1]);
+            double diff_d = -car_d + it->second[1][it->second[1].size()-1];
+            cout<<"diff_s: "<<diff_s<<"  diff_d: "<<diff_d<<endl;
+            if(FREE_SPACE>diff_s){
+
+              if (diff_d > 2 && diff_d < 6) other_car_right = true;
+              else if (diff_d < -2 && diff_d > -6) other_car_left = true;
+              else if (diff_d > -2 && diff_d < 2) other_car_front = true;
+            }
+          }
+
+          if (other_car_right) cout << "CAR ON THE RIGHT!!!" << endl;
+          if (other_car_left) cout << "CAR ON THE LEFT!!!" << endl;
+          if (other_car_front) cout << "CAR JUST AHEAD!!!" << endl;
+
+          //borrar
           if(prev_size>0)
           {
-            evo.car_s =  end_path_s;
+            car_s =  end_path_s;
           }
 
           for (int i = 0; i < sensor_fusion.size(); ++i)
@@ -134,7 +175,7 @@ int main() {
 
               check_s += ((double)prev_size*.02*check_speed);
 
-              if ((check_s > evo.car_s) && ((check_s-evo.car_s) < 30))
+              if ((check_s > car_s) && ((check_s-car_s) < FREE_SPACE))
               {
                 //ref_vel = 29.5; //mph
                 //do something
@@ -151,8 +192,9 @@ int main() {
             evo.ref_velocity -= 0.4;
           }
           else if(evo.ref_velocity < 49.5){
-            evo.ref_velocity += 0.4;
+            evo.ref_velocity += 1.0;
           }
+          //borrar
 
           //sensor fusion checking the other cars
 
@@ -160,19 +202,25 @@ int main() {
           vector<double> ptsx;
           vector<double> ptsy;
 
-          double ref_x = evo.car_x;
-          double ref_y = evo.car_y;
-          double ref_yaw = deg2rad(evo.car_yaw);
+          double ref_x = car_x;
+          double ref_y = car_y;
+          double ref_s = car_s;
+          double ref_d = car_d;
+          double ref_s_dot = car_speed;
+          double ref_d_dot = 0.0;
+          double ref_s_dot_dot = 0.0;
+          double ref_d_dot_dot = 0.0;
+          double ref_yaw = deg2rad(car_yaw);
 
-          if(prev_size<2){
-            double prev_car_x = evo.car_x - cos(evo.car_yaw);
-            double prev_car_y = evo.car_y - sin(evo.car_yaw);
+          if(prev_size<4){
+            double prev_car_x = ref_x - cos(ref_yaw);
+            double prev_car_y = ref_y - sin(ref_yaw);
 
             ptsx.push_back(prev_car_x);
-            ptsx.push_back(evo.car_x);
+            ptsx.push_back(ref_x);
 
             ptsy.push_back(prev_car_y);
-            ptsy.push_back(evo.car_y);
+            ptsy.push_back(ref_y);
           }
           else{
             ref_x = previous_path_x[prev_size-1];
@@ -181,6 +229,51 @@ int main() {
             double ref_x_prev = previous_path_x[prev_size-2];
             double ref_y_prev = previous_path_y[prev_size-2];
             ref_yaw = atan2(ref_y-ref_y_prev, ref_x-ref_x_prev);
+
+            /*Calculate reference s and d*/
+            vector<double> ref_s_d = getFrenet(ref_x, ref_y, ref_yaw, map_waypoints_x, map_waypoints_y);
+            
+            ref_s = ref_s_d[0];
+            ref_d = ref_s_d[1];
+
+            //cout<<"ref_s :"<< ref_s<<endl;
+            //cout<<"ref_d :"<< ref_d<<endl;
+
+            /*Calculate reference s_dot and d_dot */
+            double ref_x_prev_2 = previous_path_x[prev_size-3];
+            double ref_y_prev_2 = previous_path_y[prev_size-3];
+            ref_yaw = atan2(ref_y_prev-ref_y_prev_2, ref_x_prev-ref_x_prev_2);
+
+            ref_s_d = getFrenet(ref_x_prev, ref_y_prev, ref_yaw, map_waypoints_x, map_waypoints_y);
+
+            double ref_s_prev = ref_s_d[0];
+            double ref_d_prev = ref_s_d[1];
+
+            //cout<<"ref_s_prev :"<< ref_s_prev<<endl;
+            //cout<<"ref_d_prev :"<< ref_d_prev<<endl;
+
+            ref_s_dot = (ref_s - ref_s_prev)/0.02;
+            ref_d_dot = (ref_d - ref_d_prev)/0.02;
+
+            /*Calculate reference s_dot_dot and d_dot_dot */
+
+            double ref_x_prev_3 = previous_path_x[prev_size-4];
+            double ref_y_prev_3 = previous_path_y[prev_size-4];
+            ref_yaw = atan2(ref_y_prev_2-ref_y_prev_3, ref_x_prev_2-ref_x_prev_3);
+
+            ref_s_d = getFrenet(ref_x_prev_2, ref_y_prev_2, ref_yaw, map_waypoints_x, map_waypoints_y);
+
+            double ref_s_prev_2 = ref_s_d[0];
+            double ref_d_prev_2 = ref_s_d[1];
+
+            //cout<<"ref_s_prev_2 :"<< ref_s_prev_2<<endl;
+            //cout<<"ref_d_prev_2 :"<< ref_d_prev_2<<endl;
+
+            double ref_s_dot_prev = (ref_s_prev - ref_s_prev_2)/0.02;
+            double ref_d_dot_prev = (ref_d_prev - ref_d_prev_2)/0.02;
+
+            ref_s_dot_dot = (ref_s_dot - ref_s_dot_prev)/0.02;
+            ref_d_dot_dot = (ref_d_dot - ref_d_dot_prev)/0.02;
 
 
             ptsx.push_back(ref_x_prev);
@@ -191,15 +284,24 @@ int main() {
 
           }
 
-          vector<double> xy = getXY(evo.car_s+30,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
+          evo.set_parameters_S_D(ref_s, ref_d, ref_s_dot, ref_d_dot, ref_s_dot_dot, ref_d_dot_dot);
+
+          /*cout<<"evo.car_s :"<< evo.car_s<<endl;
+          cout<<"evo.car_d :"<< evo.car_d<<endl;
+          cout<<"evo.s_dot :"<< evo.s_dot<<endl;
+          cout<<"evo.d_dot :"<< evo.d_dot<<endl;
+          cout<<"evo.s_dot_dot :"<< evo.s_dot_dot<<endl;
+          cout<<"evo.d_dot_dot :"<< evo.d_dot_dot<<endl;*/
+
+          vector<double> xy = getXY(car_s+30,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
           ptsx.push_back(xy[0]);
           ptsy.push_back(xy[1]);
 
-          xy = getXY(evo.car_s+60,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
+          xy = getXY(car_s+60,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
           ptsx.push_back(xy[0]);
           ptsy.push_back(xy[1]);
 
-          xy = getXY(evo.car_s+90,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
+          xy = getXY(car_s+90,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
           ptsx.push_back(xy[0]);
           ptsy.push_back(xy[1]);
 
@@ -216,7 +318,12 @@ int main() {
 
           prev_size = previous_path_x.size();
 
+          /*cout<<"actual_x : "<<evo.car_x<<endl;
+          cout<<"actual_y : "<<evo.car_y<<endl;*/
+
           for (int i = 0; i < prev_size; ++i) {
+            /*cout<<"next_x"<<i<<" : "<<previous_path_x[i]<<endl;
+            cout<<"next_y"<<i<<" : "<<previous_path_y[i]<<endl;*/
             next_x_vals.push_back(previous_path_x[i]);
             next_y_vals.push_back(previous_path_y[i]);
           }
