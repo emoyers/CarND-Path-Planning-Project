@@ -4,25 +4,23 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "helpers.h"
 #include "json.hpp"
 #include "spline.h"
 #include "vehicle.h"
+#include "macros.h"
 
 // for convenience
 using nlohmann::json;
 using std::string;
 using std::vector;
 using std::map;
+using std::set;
 using std::cout;
 using std::endl;
-
-#define num_next_points_calulated 50
-#define initial_velocity 0.0
-#define middle_lane 1
-#define FREE_SPACE 15
 
 int main() {
   uWS::Hub h;
@@ -121,42 +119,7 @@ int main() {
 
           bool too_close = false;
           //sensor fusion checking the other cars
-          map<double, Vehicle> other_cars;
-          map<double, vector<vector<double>> > other_cars_predictions;
-          for (auto sf :  sensor_fusion)
-          {
-            Vehicle other_car;
-            double other_car_speed = sqrt(pow((double)sf[3], 2) + pow((double)sf[4], 2));
-            other_car.set_other_car_parameters( sf[1], sf[2], sf[5], sf[6], other_car_speed );
-            other_cars_predictions[sf[0]] = other_car.other_cars_predict((int)(num_next_points_calulated-previous_path_x.size()));
-            other_cars[sf[0]] = other_car;
-          }
 
-          /*for(int i = 0; i<other_cars_predictions.find(sensor_fusion[0][0])->second[0].size();i++){
-            cout<< "id 0: "<<
-            i<<"  s: "<<other_cars_predictions.find(sensor_fusion[0][0])->second[0][i]<<
-            ",  d: "<<other_cars_predictions.find(sensor_fusion[0][0])->second[1][i]<<
-            endl;
-          }*/
-
-          bool other_car_front = false;
-          bool other_car_right= false;
-          bool other_car_left = false;
-          for(auto it=other_cars_predictions.begin(); it!=other_cars_predictions.end();it++){
-            double diff_s = fabs(car_s - it->second[0][it->second[0].size()-1]);
-            double diff_d = -car_d + it->second[1][it->second[1].size()-1];
-            cout<<"diff_s: "<<diff_s<<"  diff_d: "<<diff_d<<endl;
-            if(FREE_SPACE>diff_s){
-
-              if (diff_d > 2 && diff_d < 6) other_car_right = true;
-              else if (diff_d < -2 && diff_d > -6) other_car_left = true;
-              else if (diff_d > -2 && diff_d < 2) other_car_front = true;
-            }
-          }
-
-          if (other_car_right) cout << "CAR ON THE RIGHT!!!" << endl;
-          if (other_car_left) cout << "CAR ON THE LEFT!!!" << endl;
-          if (other_car_front) cout << "CAR JUST AHEAD!!!" << endl;
 
           //borrar
           if(prev_size>0)
@@ -191,7 +154,7 @@ int main() {
           if(too_close){
             evo.ref_velocity -= 0.4;
           }
-          else if(evo.ref_velocity < 49.5){
+          else if(evo.ref_velocity < MAX_VELOCITY){
             evo.ref_velocity += 1.0;
           }
           //borrar
@@ -292,6 +255,64 @@ int main() {
           cout<<"evo.d_dot :"<< evo.d_dot<<endl;
           cout<<"evo.s_dot_dot :"<< evo.s_dot_dot<<endl;
           cout<<"evo.d_dot_dot :"<< evo.d_dot_dot<<endl;*/
+
+          map<double, Vehicle> other_cars;
+          map<double, vector<vector<double>> > other_cars_predictions;
+          for (auto sf :  sensor_fusion)
+          {
+            Vehicle other_car;
+            double other_car_speed = sqrt(pow((double)sf[3], 2) + pow((double)sf[4], 2));
+            other_car.set_other_car_parameters( sf[1], sf[2], sf[5], sf[6], other_car_speed );
+            other_cars_predictions[sf[0]] = other_car.other_cars_predict((int)(num_next_points_calulated-previous_path_x.size()), previous_path_x.size());
+            other_cars[sf[0]] = other_car;
+          }
+
+          /*for(int i = 0; i<other_cars_predictions.find(sensor_fusion[0][0])->second[0].size();i++){
+            cout<< "id 0: "<<
+            i<<"  s: "<<other_cars_predictions.find(sensor_fusion[0][0])->second[0][i]<<
+            ",  d: "<<other_cars_predictions.find(sensor_fusion[0][0])->second[1][i]<<
+            endl;
+          }*/
+
+          bool other_car_front = false;
+          bool other_car_right= false;
+          bool other_car_left = false;
+          for(auto it=other_cars_predictions.begin(); it!=other_cars_predictions.end();it++){
+            double diff_s = fabs(evo.car_s - it->second[0][0]);
+            double diff_d = -evo.car_d + it->second[1][0];
+            //cout<<"diff_s: "<<diff_s<<"  diff_d: "<<diff_d<<endl;
+            if(FREE_SPACE>diff_s){
+
+              if (diff_d > 2 && diff_d < 6) other_car_right = true;
+              else if (diff_d < -2 && diff_d > -6) other_car_left = true;
+              else if (diff_d > -2 && diff_d < 2) other_car_front = true;
+            }
+          }
+
+          if (other_car_right) cout << "CAR ON THE RIGHT!!!" << endl;
+          if (other_car_left) cout << "CAR ON THE LEFT!!!" << endl;
+          if (other_car_front) cout << "CAR JUST AHEAD!!!" << endl;
+
+          evo.set_possible_next_states(other_car_right, other_car_left);
+
+          /*cout<<"posible states: ";
+          for(auto it=evo.possible_next_states.begin(); it!=evo.possible_next_states.end();it++){
+            cout<<*it<<", ";
+          }
+          cout<<endl;*/
+          cout<<"lane: "<<evo.actual_lane<<endl;
+
+          for(string state: evo.possible_next_states){
+            vector<vector<double>> target_s_and_d =evo.calculate_target_s_and_d(state, previous_path_x.size(), other_cars_predictions);
+            /*
+            cout<<state<<endl;
+            cout<<"current_s: "<<evo.car_s<<" current_speed: "<<evo.s_dot<<" current_d :"<<evo.car_d<<endl;
+            cout<<"next_s: "<<target_s_and_d[0][0]<<" next: "<<target_s_and_d[0][1]<<" next :"<<target_s_and_d[1][0]<<endl;
+            */
+          }
+
+
+          //borrar pa abajo
 
           vector<double> xy = getXY(car_s+30,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
           ptsx.push_back(xy[0]);
