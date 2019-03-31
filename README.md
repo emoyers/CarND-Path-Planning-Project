@@ -1,6 +1,60 @@
+[image0]: ./images/screen.png "original chessboard"
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
-   
+
+## Code Explanation
+
+The code consists of 8 files, 3 source files and 5 header files:
+* main.cpp
+* vehicle.cpp
+* costs_and_JMT.cpp
+* vehicle.h
+* macros.h
+* costs_and_JMT.h
+* helpers.h
+* spline.h
+
+In the `main.cpp` is the logic that is divided in:
+* Initialization form line `115` to `201`
+* Getting other car trajectories form line `210` to `255`
+* Calculating best trajectory for our car from line `263` to `302`, this include calculating trajectories for all the possible states (keep in the same lane, change right and change left)
+* Signal conditioning for next path form line `311` to `370`
+
+In `vehicle.cpp` is the definition of `Vehicle class` use to store the information of our car and other cars. This class contains the following methods:
+
+* **set_parameters** : Initialization of our car
+* **set_other_car_parameters** : Initialization of the other cars
+* **set_parameters_S_D** : setting s and d related parameters
+* **other_cars_predict** : get the predict trajectory of the other cars, using sensor fusin data
+* **set_possible_next_states** : get the possible state of our car, base on the other car trajectories
+* **calculate_target_s_and_d** : calculate the target s and d base on possible states
+* **get_trajectory** : return the trajectory based on the calculated target s and d
+
+The file `costs_and_JMT.cpp` have the JMT algorithm and the cost fuctions that wer use to decide the best trajectory. The function that calculate the cost of every trajectory is `calculate_trajectory_cost` located from line `102` to `125`.
+The cost the are considered within the previous function are:
+
+* **collision_cost** : penalize the collisions
+* **fast_2_target_cost** : rewards faster speeds
+* **closer_other_cars_any_lane_cost** : penalize being close to other vehicles
+* **closer_infront_car_same_lane_cost** : penalize being close to the vehicle in front
+* **go_2_middle_lane_cost** : rewards been in the center lane, to have more options for the next decision
+* **left_over_right_cost** : prefer a left lane change than a right lane change
+
+I didn't use jerk cost or acceleration cost because I use JMT and spline for the final points calculation in `main.cpp`
+
+`vehicle.h` and `costs_and_JMT.h` contain the prototypes of `vehicle.cpp` and `costs_and_JMT.cpp` respectively.
+
+`macros.h` have all the constant used within the project.
+
+`helpers.h` already included in the original repository.
+
+`spline.h` is used to generate the next values for the next loop base on the calculated best trajectory, to avoid reaching great jerk and acceleration and make the movement of the car more smoothly.
+
+Next the image is a prove of reaching the 4.32 miles without an incident and following the constrains mentioned in the rubric.
+
+![alt text][image0]
+**Simulator screen shot**
+
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).  
 
@@ -43,13 +97,13 @@ Here is the data provided from the Simulator to the C++ Program
 #### Previous path data given to the Planner
 
 //Note: Return the previous list but with processed points removed, can be a nice tool to show how far along
-the path has processed since last time. 
+the path has processed since last time.
 
 ["previous_path_x"] The previous list of x points previously given to the simulator
 
 ["previous_path_y"] The previous list of y points previously given to the simulator
 
-#### Previous path's end s and d values 
+#### Previous path's end s and d values
 
 ["end_path_s"] The previous list's last point's frenet s value
 
@@ -57,7 +111,7 @@ the path has processed since last time.
 
 #### Sensor Fusion Data, a list of all other car's attributes on the same side of the road. (No Noise)
 
-["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
+["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates.
 
 ## Details
 
@@ -87,7 +141,7 @@ A really helpful resource for doing this project and creating smooth trajectorie
   * Run either `install-mac.sh` or `install-ubuntu.sh`.
   * If you install from source, checkout to commit `e94b6e1`, i.e.
     ```
-    git clone https://github.com/uWebSockets/uWebSockets 
+    git clone https://github.com/uWebSockets/uWebSockets
     cd uWebSockets
     git checkout e94b6e1
     ```
@@ -109,37 +163,3 @@ Please (do your best to) stick to [Google's C++ style guide](https://google.gith
 
 Note: regardless of the changes you make, your project must be buildable using
 cmake and make!
-
-
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
-
