@@ -29,3 +29,4 @@ double fast_2_target_cost(vector<double> trajectory_s);
 double closer_other_cars_any_lane_cost(double closest_vehicle_distance);
 double closer_infront_car_same_lane_cost (double closest_vehicle_distance);
 double go_2_middle_lane_cost(vector<double> trajectory_d);
+double left_over_right_cost(vector<double> trajectory_d);

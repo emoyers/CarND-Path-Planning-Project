@@ -126,7 +126,7 @@ vector<vector<double>> Vehicle::calculate_target_s_and_d(string state, int start
 	}
 
 	
-	return {{target_s, target_s_dot, target_s_dot_dot}, {target_d, target_d_dot, target_d_dot_dot}};
+	return {{target_s, target_s_dot, target_s_dot_dot}, {target_d, target_d_dot, target_d_dot_dot},{closer_vehicle_speed}};
 }
 
 vector<vector<double>> Vehicle::get_trajectory(vector<vector<double>> s_d_final, int start){

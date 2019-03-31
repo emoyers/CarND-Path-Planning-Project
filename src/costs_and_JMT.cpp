@@ -6,6 +6,7 @@
 #define CLOSER_OTHER_CARS_ANY_LANE_WEIGHT 10
 #define CLOSER_INFRONT_CAR_SAME_LANE_WEIGHT 1000
 #define GO_2_MIDDLE_LANE_WEIGHT 100
+#define LEFT_OVER_RIGHT_WEIGHT 10
 
 vector<double> JMT_get_alphas(vector<double> start, vector<double> end, double T) {
 
@@ -114,10 +115,11 @@ double calculate_trajectory_cost(vector<vector<double>> trajectory, map<double, 
   double cost_closer_other_cars_any_lane = closer_other_cars_any_lane_cost(closets_car_any_lane) * CLOSER_OTHER_CARS_ANY_LANE_WEIGHT;
   double cost_closer_infront_car_same_lane = closer_infront_car_same_lane_cost(closets_car_any_lane) * CLOSER_INFRONT_CAR_SAME_LANE_WEIGHT;
   double cost_go_2_middle_lane = go_2_middle_lane_cost(trajectory_d) * GO_2_MIDDLE_LANE_WEIGHT;
+  double cost_left_over_right = left_over_right_cost(trajectory_d) * LEFT_OVER_RIGHT_WEIGHT;
 
   //cout<<"cost_fast_2_target : "<< cost_fast_2_target<<endl;
 
-  cost = cost_collision + cost_fast_2_target + cost_closer_other_cars_any_lane + cost_closer_infront_car_same_lane + cost_go_2_middle_lane;
+  cost = cost_collision + cost_fast_2_target + cost_closer_other_cars_any_lane + cost_closer_infront_car_same_lane + cost_go_2_middle_lane + cost_left_over_right;
   
   return cost;
 }
@@ -160,5 +162,11 @@ double go_2_middle_lane_cost(vector<double> trajectory_d) {
 
   double middle_lane_dist = trajectory_d[trajectory_d.size()-1] - 6.0;
   return logistic( pow( middle_lane_dist , 2) );
+
+}
+
+double left_over_right_cost(vector<double> trajectory_d) {
+
+  return logistic( trajectory_d[trajectory_d.size()-1] );
 
 }

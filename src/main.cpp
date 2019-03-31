@@ -125,7 +125,8 @@ int main() {
           double ref_d_dot_dot = 0.0;
           double ref_yaw = deg2rad(car_yaw);
 
-          if(prev_size<4){
+          bool error_spline = false;
+          if(prev_size<4 || error_spline){
             double prev_car_x = ref_x - cos(ref_yaw);
             double prev_car_y = ref_y - sin(ref_yaw);
 
@@ -237,19 +238,19 @@ int main() {
               else if (diff_d < -2 && diff_d > -6) other_car_left = true;
               else if (diff_d > -2 && diff_d < 2) other_car_front = true;
             }
+
+            if(CHANGE_LANE_FREE_SPACE<diff_s && FREE_SPACE>diff_s){
+
+              if (diff_d > 2 && diff_d < 6) other_car_right = false;
+              else if (diff_d < -2 && diff_d > -6) other_car_left = false;
+            }
+          
           }
 
           if (other_car_right) cout << "CAR ON THE RIGHT!!!" << endl;
           if (other_car_left) cout << "CAR ON THE LEFT!!!" << endl;
           if (other_car_front) cout << "CAR JUST AHEAD!!!" << endl;
           if (!other_car_front & !other_car_left & !other_car_right ) cout << "CLEAR :)" << endl;
-  
-          if (other_car_front){
-            evo.ref_velocity -= (1.0/2.24);
-          }
-          else if(evo.ref_velocity < (MAX_VELOCITY/2.24)){
-            evo.ref_velocity += (1.0/2.24);
-          }
 
           evo.set_possible_next_states(other_car_right, other_car_left);
 
@@ -290,6 +291,16 @@ int main() {
 
           }
 
+          cout<<"closer car speed:"<<best_target_s_and_d[2][0]<<endl;
+          if (other_car_front){
+            if(evo.ref_velocity > best_target_s_and_d[2][0]){
+              evo.ref_velocity -= (1.0/2.24);
+            } 
+          }
+          else if(evo.ref_velocity < (MAX_VELOCITY/2.24)){
+            evo.ref_velocity += (1.0/2.24);
+          }
+
           /*cout<<"curret_s"<<evo.car_s<<endl;
           cout<<"current_d"<<evo.car_d<<endl;
           cout<<"best_target_s"<<best_target_s_and_d[0][0]<<endl;
@@ -314,6 +325,12 @@ int main() {
           ptsx.push_back(xy[0]);
           ptsy.push_back(xy[1]);
 
+          /*cout<<"before transformation"<<endl;
+          for (int i = 0; i < ptsx.size(); ++i)
+          {
+            cout<<"ptsx_"<<i<<" : "<<ptsx[i]<<"  "<<"ptsy_"<<i<<" : "<<ptsy[i]<<endl;
+          }*/
+          
           /*change to local coordinates*/
 
           for (int i = 0; i < ptsx.size(); ++i)
@@ -324,6 +341,21 @@ int main() {
             ptsx[i] = (shift_x * cos(0-ref_yaw) - shift_y * sin(0-ref_yaw));
             ptsy[i] = (shift_x * sin(0-ref_yaw) + shift_y * cos(0-ref_yaw));
           }
+ 
+         
+          for (int i = 0; i < ptsx.size()-1; ++i)
+          {
+            if (ptsx[i]>= ptsx[i+1])
+            {
+              error_spline = true;
+            }
+          }
+
+          /*cout<<"after transformation"<<endl;
+          for (int i = 0; i < ptsx.size(); ++i)
+          {
+            cout<<"ptsx_"<<i<<" : "<<ptsx[i]<<"  "<<"ptsy_"<<i<<" : "<<ptsy[i]<<endl;
+          }*/
 
           prev_size = previous_path_x.size();
 
@@ -346,7 +378,9 @@ int main() {
 
           double x_add_on = 0;
 
-          for(int i=0; i<num_next_points_calulated-prev_size ; i++){
+
+          if(evo.ref_velocity<0)cout<<"------error------"<<endl;
+          for(int i=0; i< num_next_points_calulated-prev_size ; i++){
             double N = (target_dist/(0.02*evo.ref_velocity));
             double x_point = x_add_on + (target_x)/N;
             double y_point = xy_spline(x_point);
