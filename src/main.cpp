@@ -112,10 +112,6 @@ int main() {
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
-
-          if(evo.ref_velocity < (MAX_VELOCITY/2.24)){
-            evo.ref_velocity += (1.0/2.24);
-          }
           vector<double> ptsx;
           vector<double> ptsy;
 
@@ -247,6 +243,13 @@ int main() {
           if (other_car_left) cout << "CAR ON THE LEFT!!!" << endl;
           if (other_car_front) cout << "CAR JUST AHEAD!!!" << endl;
           if (!other_car_front & !other_car_left & !other_car_right ) cout << "CLEAR :)" << endl;
+  
+          if (other_car_front){
+            evo.ref_velocity -= (1.0/2.24);
+          }
+          else if(evo.ref_velocity < (MAX_VELOCITY/2.24)){
+            evo.ref_velocity += (1.0/2.24);
+          }
 
           evo.set_possible_next_states(other_car_right, other_car_left);
 
@@ -294,7 +297,6 @@ int main() {
 
           cout<<"-----------Trajectory-------------"<<endl;*/
 
-
           double best_target_s = best_target_s_and_d[0][0];
           double best_target_d = best_target_s_and_d[1][0];
           vector<double> target_xy = getXY(best_target_s, best_target_d, map_waypoints_s,map_waypoints_x,map_waypoints_y);
@@ -338,7 +340,7 @@ int main() {
           tk::spline xy_spline;
           xy_spline.set_points(ptsx,ptsy); 
 
-          double target_x = target_xy[0];
+          double target_x = 30;
           double target_y = xy_spline(target_x);
           double target_dist =  sqrt((target_x*target_x)+(target_y*target_y));
 
