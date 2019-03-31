@@ -72,14 +72,14 @@ vector<vector<double>> Vehicle::calculate_target_s_and_d(string state, int start
 	this->actual_lane = (int)(this->car_d / 4); 
 
 	double target_s = 0.0;
-	double target_s_dot = MAX_VELOCITY/2.24; /*2.24 division to convert mph to m/s*/
+	double target_s_dot =  (MAX_VELOCITY/2.24);/*2.24 division to convert mph to m/s*/
 	double target_s_dot_dot = 0.0;
 
 	double target_d = 0.0;
 	double target_d_dot = 0.0;
 	double target_d_dot_dot = 0.0;
 
-	target_s = this->car_s + (this->s_dot + target_s_dot)/2 * num_element2calculate;
+	target_s = this->car_s + (this->s_dot + target_s_dot)/2 * num_element2calculate*0.02;
 	
 	/*get target d*/
 	if(state == "Front"){
@@ -104,7 +104,7 @@ vector<vector<double>> Vehicle::calculate_target_s_and_d(string state, int start
 		if(other_car_lane == target_lane){
 			double first_s = car_pred.second[0][0];
 			double last_s = car_pred.second[0][car_pred.second[0].size()-1];
-        	double other_car_speed = (last_s-first_s)/((car_pred.second[0].size()-1)*0.02);
+        	double other_car_speed = (last_s-first_s)/((car_pred.second[0].size())*0.02);
 
         	if((last_s < closer_vehicle_s) && (first_s > this->car_s)){
         		closer_vehicle_s = last_s;
@@ -127,4 +127,35 @@ vector<vector<double>> Vehicle::calculate_target_s_and_d(string state, int start
 
 	
 	return {{target_s, target_s_dot, target_s_dot_dot}, {target_d, target_d_dot, target_d_dot_dot}};
+}
+
+vector<vector<double>> Vehicle::get_trajectory(vector<vector<double>> s_d_final, int start){
+  vector<double> s_trajectory;
+  vector<double> d_trajectory;
+
+  double final_time = (num_next_points_calulated - start) * 0.02;
+
+  vector<double> alphas_s = JMT_get_alphas({this->car_s, this->s_dot, this->s_dot_dot},s_d_final[0], final_time);
+  vector<double> alphas_d = JMT_get_alphas({this->car_d, this->d_dot, this->d_dot_dot},s_d_final[1], final_time);
+
+  int number_of_samples = num_next_points_calulated - start;
+  for( int i=0; i< number_of_samples;i++){
+
+  	double time_i = (i+1) * (final_time/number_of_samples);
+  	double temp_s = 0.0;
+  	double temp_d = 0.0;
+
+  	for(int j=0; j< alphas_s.size(); j++){
+  		temp_s += alphas_s[j]*pow(time_i,j);
+  	}
+
+  	for(int j=0; j< alphas_d.size(); j++){
+  		temp_d += alphas_d[j]*pow(time_i,j);
+  	}
+
+  	s_trajectory.push_back(temp_s);
+  	d_trajectory.push_back(temp_d);
+  }
+
+  return {s_trajectory, d_trajectory};
 }

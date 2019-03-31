@@ -4,11 +4,15 @@
 #include <string>
 #include <iostream>
 #include "macros.h"
+#include "costs_and_JMT.h"
+#include <algorithm>
 
 using std::vector;
 using std::set;
 using std::map;
 using std::string;
+using std::cout;
+using std::endl;
 
 class Vehicle{
 
@@ -51,4 +55,6 @@ public:
 	void set_possible_next_states(bool car_right, bool car_left);
 
 	vector<vector<double>> calculate_target_s_and_d(string state, int start, map<double, vector<vector<double>> > other_cars_prediction);
+
+	vector<vector<double>> get_trajectory(vector<vector<double>> s_d_final, int start);
 };

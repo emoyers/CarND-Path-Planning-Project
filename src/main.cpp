@@ -12,6 +12,7 @@
 #include "spline.h"
 #include "vehicle.h"
 #include "macros.h"
+#include "costs_and_JMT.h"
 
 // for convenience
 using nlohmann::json;
@@ -111,57 +112,10 @@ int main() {
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
-          /**
-           * TODO: define a path made up of (x,y) points that the car will visit
-           *   sequentially every .02 seconds
-           */
-          
 
-          bool too_close = false;
-          //sensor fusion checking the other cars
-
-
-          //borrar
-          if(prev_size>0)
-          {
-            car_s =  end_path_s;
+          if(evo.ref_velocity < (MAX_VELOCITY/2.24)){
+            evo.ref_velocity += (1.0/2.24);
           }
-
-          for (int i = 0; i < sensor_fusion.size(); ++i)
-          {
-            float d = sensor_fusion[i][6];
-            if(d<(2+4*evo.actual_lane+2) && d>(2+4*evo.actual_lane-2)){
-              double vx = sensor_fusion[i][3];
-              double vy = sensor_fusion[i][4];
-              double check_speed = sqrt(vx*vx + vy*vy);
-              double check_s = sensor_fusion[i][5];
-
-              check_s += ((double)prev_size*.02*check_speed);
-
-              if ((check_s > car_s) && ((check_s-car_s) < FREE_SPACE))
-              {
-                //ref_vel = 29.5; //mph
-                //do something
-                too_close = true;
-                if(evo.actual_lane>0){
-                  evo.actual_lane = 0;
-                }
-              }
-
-            }
-          }
-
-          if(too_close){
-            evo.ref_velocity -= 0.4;
-          }
-          else if(evo.ref_velocity < MAX_VELOCITY){
-            evo.ref_velocity += 1.0;
-          }
-          //borrar
-
-          //sensor fusion checking the other cars
-
-          //smooth driving 
           vector<double> ptsx;
           vector<double> ptsy;
 
@@ -292,6 +246,7 @@ int main() {
           if (other_car_right) cout << "CAR ON THE RIGHT!!!" << endl;
           if (other_car_left) cout << "CAR ON THE LEFT!!!" << endl;
           if (other_car_front) cout << "CAR JUST AHEAD!!!" << endl;
+          if (!other_car_front & !other_car_left & !other_car_right ) cout << "CLEAR :)" << endl;
 
           evo.set_possible_next_states(other_car_right, other_car_left);
 
@@ -300,7 +255,10 @@ int main() {
             cout<<*it<<", ";
           }
           cout<<endl;*/
-          cout<<"lane: "<<evo.actual_lane<<endl;
+          //cout<<"lane: "<<evo.actual_lane<<endl;
+          double best_cost = 9999999;
+          vector<vector<double>> best_target_s_and_d;
+          vector<vector<double>> best_trajectory_s_and_d;
 
           for(string state: evo.possible_next_states){
             vector<vector<double>> target_s_and_d =evo.calculate_target_s_and_d(state, previous_path_x.size(), other_cars_predictions);
@@ -309,20 +267,48 @@ int main() {
             cout<<"current_s: "<<evo.car_s<<" current_speed: "<<evo.s_dot<<" current_d :"<<evo.car_d<<endl;
             cout<<"next_s: "<<target_s_and_d[0][0]<<" next: "<<target_s_and_d[0][1]<<" next :"<<target_s_and_d[1][0]<<endl;
             */
+            vector<vector<double>> trajectory_s_and_d =evo.get_trajectory(target_s_and_d, previous_path_x.size());
+            /*
+            cout<<state<<endl;
+            cout<<"current_s: "<<evo.car_s<<" current_d :"<<evo.car_d<<endl;
+            for(int f=0; f<trajectory_s_and_d[0].size();f++){
+              cout<<"s_"<<f<<" : "<<trajectory_s_and_d[0][f]<<" d : "<<trajectory_s_and_d[1][f]<<endl;
+            }
+            */
+
+            double cost_trajectory = calculate_trajectory_cost(trajectory_s_and_d, other_cars_predictions);
+            //cout<<state<<" : "<<cost_trajectory<<endl;
+
+            if ( cost_trajectory < best_cost ) {
+                best_cost = cost_trajectory;
+                best_target_s_and_d = target_s_and_d;
+                best_trajectory_s_and_d = trajectory_s_and_d;
+            }
+
           }
 
+          /*cout<<"curret_s"<<evo.car_s<<endl;
+          cout<<"current_d"<<evo.car_d<<endl;
+          cout<<"best_target_s"<<best_target_s_and_d[0][0]<<endl;
+          cout<<"best_target_d"<<best_target_s_and_d[1][0]<<endl;
 
-          //borrar pa abajo
+          cout<<"-----------Trajectory-------------"<<endl;*/
 
-          vector<double> xy = getXY(car_s+30,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
+
+          double best_target_s = best_target_s_and_d[0][0];
+          double best_target_d = best_target_s_and_d[1][0];
+          vector<double> target_xy = getXY(best_target_s, best_target_d, map_waypoints_s,map_waypoints_x,map_waypoints_y);
+
+
+          vector<double> xy = getXY(evo.car_s+30,best_target_d, map_waypoints_s,map_waypoints_x,map_waypoints_y);
           ptsx.push_back(xy[0]);
           ptsy.push_back(xy[1]);
 
-          xy = getXY(car_s+60,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
+          xy = getXY(evo.car_s+60,best_target_d, map_waypoints_s,map_waypoints_x,map_waypoints_y);
           ptsx.push_back(xy[0]);
           ptsy.push_back(xy[1]);
 
-          xy = getXY(car_s+90,(2+4*evo.actual_lane), map_waypoints_s,map_waypoints_x,map_waypoints_y);
+          xy = getXY(evo.car_s+90,best_target_d, map_waypoints_s,map_waypoints_x,map_waypoints_y);
           ptsx.push_back(xy[0]);
           ptsy.push_back(xy[1]);
 
@@ -339,12 +325,12 @@ int main() {
 
           prev_size = previous_path_x.size();
 
-          /*cout<<"actual_x : "<<evo.car_x<<endl;
-          cout<<"actual_y : "<<evo.car_y<<endl;*/
+          //cout<<"actual_x : "<<evo.car_x<<endl;
+          //cout<<"actual_y : "<<evo.car_y<<endl;
 
           for (int i = 0; i < prev_size; ++i) {
-            /*cout<<"next_x"<<i<<" : "<<previous_path_x[i]<<endl;
-            cout<<"next_y"<<i<<" : "<<previous_path_y[i]<<endl;*/
+            //cout<<"next_x"<<i<<" : "<<previous_path_x[i]<<endl;
+            //cout<<"next_y"<<i<<" : "<<previous_path_y[i]<<endl;
             next_x_vals.push_back(previous_path_x[i]);
             next_y_vals.push_back(previous_path_y[i]);
           }
@@ -352,14 +338,14 @@ int main() {
           tk::spline xy_spline;
           xy_spline.set_points(ptsx,ptsy); 
 
-          double target_x = 30;
+          double target_x = target_xy[0];
           double target_y = xy_spline(target_x);
           double target_dist =  sqrt((target_x*target_x)+(target_y*target_y));
 
           double x_add_on = 0;
 
           for(int i=0; i<num_next_points_calulated-prev_size ; i++){
-            double N = (target_dist/(0.02*evo.ref_velocity/2.24));
+            double N = (target_dist/(0.02*evo.ref_velocity));
             double x_point = x_add_on + (target_x)/N;
             double y_point = xy_spline(x_point);
 
