@@ -1,7 +1,7 @@
 #define num_next_points_calulated 50
 #define initial_velocity 0.0
 #define middle_lane 1
-#define CHANGE_LANE_FREE_SPACE 12
+#define CHANGE_LANE_FREE_SPACE 20
 #define FREE_SPACE 20
 #define DECEL_FREE_SPACE 5
 #define MAX_VELOCITY 48
